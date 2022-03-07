@@ -35,10 +35,6 @@ impl NtpTimestamp {
         }
     }
 
-    fn zero() -> NtpTimestamp {
-        NtpTimestamp { ts: 0 }
-    }
-
     fn read(buf: &[u8]) -> NtpTimestamp {
         NtpTimestamp {
             ts: u64::from_be_bytes(buf.try_into().unwrap()),
@@ -82,11 +78,9 @@ impl<TS: TimeSource> NtpServer<TS> {
     }
 
     fn receive(&mut self) -> io::Result<(NtpRequest, SocketAddr)> {
-        let mut buf = [0; 1024];
+        let mut buf = [0; 256];
 
         let (len, addr) = self.socket.recv_from(&mut buf)?;
-
-        let local_ts = NtpTimestamp::from_system_time(self.time_source.now());
 
         if len < 48 {
             return Err(Error::new(ErrorKind::UnexpectedEof, "Packet too short"));
@@ -121,7 +115,6 @@ impl<TS: TimeSource> NtpServer<TS> {
                     let version = request.version;
                     let stratum = 1u8;
                     let poll = request.poll;
-                    let ref_ts = NtpTimestamp::zero(); // ??
                     let orig_ts = request.tx_ts;
                     let now_ts = NtpTimestamp::from_system_time(self.time_source.now());
 
@@ -132,7 +125,7 @@ impl<TS: TimeSource> NtpServer<TS> {
                     // delay.write(&mut buf[4..8]);
                     // dispersion.write(&mut buf[8..12]);
                     // BigEndian::write_u32(&mut buf[12..16], ref_id);
-                    ref_ts.write(&mut buf[16..24]);
+                    now_ts.write(&mut buf[16..24]);
                     orig_ts.write(&mut buf[24..32]);
                     now_ts.write(&mut buf[32..40]);
                     now_ts.write(&mut buf[40..48]);
